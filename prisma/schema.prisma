@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  active
+  suspended
+  pending
+}
+
+enum ApplicationStatus {
+  active
+  inactive
+  suspended
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id              String      @id @default(uuid()) @db.Uuid
+  email           String      @unique
+  username        String      @unique
+  passwordHash    String      @map("password_hash")
+  displayName     String?     @map("display_name")
+  avatarUrl       String?     @map("avatar_url")
+  status          UserStatus  @default(pending)
+  emailVerifiedAt DateTime?   @map("email_verified_at")
+  failedLoginCount Int        @default(0) @map("failed_login_count")
+  lockedUntil     DateTime?   @map("locked_until")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  sessions                    Session[]
+  userApplicationAccess       UserApplicationAccess[]
+  passwordResets              PasswordReset[]
+  emailVerifications          EmailVerification[]
+  auditLogs                   AuditLog[]
+
+  @@map("users")
+}
+
+// ─── Session ──────────────────────────────────────────────────────────────────
+
+model Session {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  refreshTokenHash String  @map("refresh_token_hash")
+  deviceName      String?   @map("device_name")
+  deviceType      String?   @map("device_type")
+  ipAddress       String?   @map("ip_address")
+  userAgent       String?   @map("user_agent")
+  lastActiveAt    DateTime? @map("last_active_at")
+  expiresAt       DateTime  @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  revokedAt       DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@map("sessions")
+}
+
+// ─── Application ──────────────────────────────────────────────────────────────
+
+model Application {
+  id               String            @id @default(uuid()) @db.Uuid
+  name             String
+  slug             String            @unique
+  clientId         String            @unique @map("client_id")
+  clientSecretHash String            @map("client_secret_hash")
+  redirectUris     String[]          @default([]) @map("redirect_uris")
+  status           ApplicationStatus @default(active)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  applicationScopes       ApplicationScope[]
+  userApplicationAccess   UserApplicationAccess[]
+  auditLogs               AuditLog[]
+
+  @@map("applications")
+}
+
+// ─── ApplicationScope ─────────────────────────────────────────────────────────
+
+model ApplicationScope {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  scope         String
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, scope])
+  @@map("application_scopes")
+}
+
+// ─── UserApplicationAccess ────────────────────────────────────────────────────
+
+model UserApplicationAccess {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  scopes        String[]
+  grantedAt     DateTime @default(now()) @map("granted_at")
+  revokedAt     DateTime? @map("revoked_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, applicationId])
+  @@map("user_application_access")
+}
+
+// ─── PasswordReset ────────────────────────────────────────────────────────────
+
+model PasswordReset {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@map("password_resets")
+}
+
+// ─── EmailVerification ────────────────────────────────────────────────────────
+
+model EmailVerification {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@map("email_verifications")
+}
+
+// ─── AuditLog ─────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  applicationId String?  @map("application_id") @db.Uuid
+  action        String
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  application Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([applicationId])
+  @@index([action])
+  @@map("audit_logs")
+}
