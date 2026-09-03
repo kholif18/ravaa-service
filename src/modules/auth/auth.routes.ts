@@ -1,7 +1,9 @@
 import { createRouter } from "../../factory.js";
-import { setCookie } from "hono/cookie";
-import { registerSchema, loginSchema, refreshSchema } from "./auth.schema.js";
+import { setCookie, getCookie } from "hono/cookie";
+import { registerSchema, loginSchema, refreshSchema, verifyEmailSchema, resendVerificationSchema } from "./auth.schema.js";
 import * as authService from "./auth.service.js";
+import * as emailVerificationService from "./email-verification.service.js";
+import { rateLimit } from "../../middlewares/rate-limit.middleware.js";
 import { ValidationError } from "../../lib/errors.js";
 
 const auth = createRouter();
@@ -83,7 +85,7 @@ auth.post("/refresh", async (c) => {
   }
 
   if (!refreshToken) {
-    refreshToken = c.req.header("Cookie")?.match(/refreshToken=([^;]+)/)?.[1];
+    refreshToken = getCookie(c, "refreshToken");
   }
 
   if (!refreshToken) {
@@ -110,5 +112,37 @@ auth.post("/refresh", async (c) => {
     expiresIn: result.expiresIn,
   });
 });
+
+auth.post("/verify-email", async (c) => {
+  const body = await c.req.json();
+  const parsed = verifyEmailSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ValidationError("Validation failed", parsed.error.flatten().fieldErrors as Record<string, string[]>);
+  }
+  const clientInfo = {
+    ipAddress: c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip") ?? "unknown",
+    userAgent: c.req.header("user-agent") ?? "unknown",
+  };
+  const user = await emailVerificationService.verifyEmail(parsed.data.token, clientInfo);
+  return c.json({ message: "Email verified successfully.", user });
+});
+
+auth.post(
+  "/resend-verification",
+  rateLimit({ windowMs: 15 * 60 * 1000, maxRequests: 5 }),
+  async (c) => {
+    const body = await c.req.json();
+    const parsed = resendVerificationSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new ValidationError("Validation failed", parsed.error.flatten().fieldErrors as Record<string, string[]>);
+    }
+    const clientInfo = {
+      ipAddress: c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip") ?? "unknown",
+      userAgent: c.req.header("user-agent") ?? "unknown",
+    };
+    await emailVerificationService.resendVerification(parsed.data.email, clientInfo);
+    return c.json({ message: "If the account requires verification, a new email will be sent." });
+  },
+);
 
 export { auth };

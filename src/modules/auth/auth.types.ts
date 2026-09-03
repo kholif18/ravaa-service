@@ -1,6 +1,6 @@
 import type { User } from "@prisma/client";
 
-export type SafeUser = Omit<User, "passwordHash" | "failedLoginCount" | "lockedUntil">;
+export type SafeUser = Omit<User, "passwordHash" | "failedLoginCount" | "lockedUntil" | "twoFactorSecret" | "twoFactorBackupCodes">;
 
 export type AuthResult = {
   user: SafeUser;

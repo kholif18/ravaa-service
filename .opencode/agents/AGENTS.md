@@ -182,8 +182,17 @@ Available error codes: `VALIDATION_ERROR`, `AUTHENTICATION_ERROR`, `AUTHORIZATIO
 // 1. Error handler (app.onError)
 app.onError(errorHandler);
 
-// 2. CORS
-app.use("*", cors());
+// 2. CORS (whitelist-based)
+app.use("*", cors({
+  origin: (origin) => {
+    // Whitelist: localhost:5173/3000/3001, ACCOUNT_WEB_URL, tesdrive/testoffice
+    // Fallback: any localhost or 192.168.* for dev
+    // Production: only known origins
+  },
+  credentials: true,
+  allowHeaders: ["Content-Type", "Authorization"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+}));
 
 // 3. Rate limiting (skipped in test)
 if (process.env.NODE_ENV !== "test") {
@@ -213,13 +222,15 @@ app.notFound((c) => { ... });
 NODE_ENV=development          # development | production | test
 PORT=3000
 DATABASE_URL=postgresql://ravaa:ravaa_dev_password@localhost:5432/ravaa_service
-JWT_SECRET=change-this-development-secret
-JWT_REFRESH_SECRET=change-this-development-refresh-secret
+JWT_SECRET=ravaa-dev-secret-key-at-least-32-chars-long-ok   # MIN 32 chars (fail-fast)
+JWT_REFRESH_SECRET=           # DEPRECATED — not used (refresh token is random 48B, not JWT)
 ```
 
 - Never hardcode credentials in source code
 - `.env` is gitignored — never commit it
 - Use `.env.example` as template
+- **JWT_SECRET minimum 32 characters** — `getEnv()` validates at startup, exits if too short
+- **JWT_REFRESH_SECRET deprecated** — kept optional for backward compat, will be removed
 
 ### Prisma 7 Configuration
 
@@ -303,13 +314,30 @@ Logout:
 
 #### JWT
 - Short-lived (15 min)
-- Secret from ENV only
+- Secret from ENV only — **minimum 32 characters** (fail-fast at startup)
 - Signature, expiration, issuer, audience all validated
+- `JWT_REFRESH_SECRET` deprecated (not used)
 
 #### Sessions
 - Revocable (set `revokedAt`)
 - User-isolated (userId check)
 - Expiry checked on every auth middleware pass
+- **User status validated** on every request (`active` or `pending` required, `suspended` → 401)
+- **lastActiveAt throttled** — updated at most once per 5 minutes (fire-and-forget)
+- **Password change revokes other sessions** — all sessions except current are revoked
+
+#### Cookie Parsing
+- Use `getCookie(c, "refreshToken")` from `hono/cookie`
+- **NEVER** use regex `Cookie` header parsing (security risk)
+
+#### CORS
+- Whitelist-based origins (not wildcard)
+- Production: `ACCOUNT_WEB_URL` + known domains
+- Dev: any localhost or 192.168.* for LAN access
+
+#### 2FA
+- `123456` bypass only allowed in `NODE_ENV !== "production"`
+- Production: real TOTP validation required
 
 ### Audit Logging
 
@@ -375,7 +403,7 @@ describe("POST /api/v1/auth/register", () => {
 docker compose up -d db          # Start PostgreSQL
 npm install                      # Install dependencies
 npx prisma generate              # Generate Prisma client
-npx prisma migrate dev           # Run migrations
+npx prisma migrate dev           # Run migrations (data dipertahankan via ALTER TABLE)
 npm run dev                      # Start dev server
 
 # Verification (run after every change)
@@ -387,11 +415,30 @@ npm test                         # Tests — MUST pass
 npx prisma db push               # Push schema without migration
 npx prisma studio                # Database GUI
 npx prisma migrate dev --name X  # Create new migration
+npm run db:seed                  # Seed admin/demo/apps (idempotent, preservasi data user)
 
 # Production
 npm run build
 npm start
 ```
+
+## Database Reset & Seed Protocol (WAJIB)
+
+> **Aturan:** Setiap reset database **WAJIB langsung di-seed**. Seed mempertahankan data user (displayName, username, recovery) — hanya mereset password ke default agar login tetap predictable.
+
+- **Migrasi normal (`migrate dev`)** → `ALTER TABLE ... DEFAULT` → **data user dipertahankan**, tidak perlu seed ulang (opsional `npm run db:seed` untuk refresh admin).
+- **Reset total** → **WAJIB seed:**
+  ```bash
+  npx prisma migrate reset --force   # akan otomatis jalankan prisma/seed.ts via prisma.config.ts
+  # atau jika manual:
+  npx prisma migrate reset --force --skip-seed && npm run db:seed
+  PGPASSWORD=ravaa_dev_password psql -h localhost -U ravaa -d ravaa_service -c "TRUNCATE users CASCADE" && npm run db:seed
+  ```
+- **Setelah `npm test`** → tests melakukan `deleteMany` → jalankan `npm run db:seed` untuk kembalikan admin/demo.
+- **Seed file:** `prisma/seed.ts` (idempotent, preservasi) + `scripts/seed-admin.ts` (legacy). Default akun:
+  - Admin: `admin@ravaa.my.id` / `Secret123` (ADMIN)
+  - Demo: `demo@ravaa.my.id` / `demo12345` (USER)
+- **JANGAN** membuat user manual tiap perubahan — andalkan seed. Jika butuh kustom, set `INITIAL_ADMIN_EMAIL/PASSWORD/USERNAME` di `.env` lalu `npm run db:seed`.
 
 ## API Endpoints (Phase 2)
 
@@ -444,7 +491,36 @@ npx prisma migrate dev           # Run migrations
 
 - **Phase 1** ✅: Foundation (Hono, Prisma, PostgreSQL, Health endpoints, Error handling)
 - **Phase 2** ✅: Authentication (Register, Login, JWT, Refresh, Sessions, Logout, Audit)
-- **Phase 3** ⏳: OpenAPI + Documentation
-- **Phase 4** ⏳: Application Registration + Client Management
-- **Phase 5** ⏳: Permission Foundation
-- **Phase 6** ⏳: Integration with Ravaa Drive
+- **Phase 3** ✅: OpenAPI + Documentation (Scalar API Reference)
+- **Phase 4** ✅: Application Registration + Client Management
+- **Phase 5** ✅: Permission Foundation (RBAC, ResourcePermission, Authorization)
+- **Phase 6** ✅: Integration with Ravaa Drive (email verification, seed protocol)
+- **Phase 7.1** ✅: Discovery — read-only audit of Drive auth/ownership
+- **Phase 7.2** ✅: Registration — `ravaa-drive` app registered, 5 scopes
+- **Phase 7.3** ✅: Token Validation — Drive introspection via `GET /api/v1/me`
+- **Phase 7.4** ✅: Identity Mapping — `User.ravaaUserId`, identity-map script
+- **Phase 7.5** ✅: Central Login — Ravaa login endpoint
+- **Phase 7.6** ✅: Architecture Review — analysis only
+- **Phase 7.7** ✅: Share Polymorphic Fix — `shareableType/shareableId`
+- **Phase 7.8** ✅: Security Hardening — 16 security fixes
+- **Phase 7.9** ✅: Session Hardening Design — audit + design report (Option C recommended)
+
+### Security Fixes (Phase 7.8)
+
+| Fix | File | Detail |
+|-----|------|--------|
+| Refresh `sid` bug | `auth.service.ts` | `signAccessToken(newSession.id)` instead of old |
+| lastActiveAt throttled | `auth.middleware.ts` | 5-minute throttle, fire-and-forget |
+| User status check | `auth.middleware.ts` | `active`/`pending` only, `suspended` → 401 |
+| Password change revoke | `me.service.ts` | `updateMany revokedAt` all other sessions |
+| 2FA bypass gated | `me.service.ts` | `123456` only if `NODE_ENV !== "production"` |
+| JWT_SECRET min 32 | `env.ts` | fail-fast at startup |
+| JWT_REFRESH_SECRET | `env.ts` | optional, deprecated |
+| CORS whitelist | `app.ts` | explicit origins, no wildcard |
+| Cookie parsing | `auth.routes.ts` | `getCookie()` replaces regex |
+
+### Session Architecture (Phase 7.9 Design)
+
+- **Ravaa Service**: Stateful sessions (DB-backed, 15min access, 7d refresh, rotation, revocable)
+- **Drive JWT**: Stateless (7d TTL, no revocation — **design to fix via Option C**)
+- **Option C recommended**: 4h Drive JWT + periodic introspection (30s cache) for revocation propagation

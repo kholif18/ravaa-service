@@ -8,6 +8,9 @@ import { authMiddleware } from "./middlewares/auth.middleware.js";
 import { auth } from "./modules/auth/auth.routes.js";
 import { applications } from "./modules/applications/applications.routes.js";
 import { permissions } from "./modules/permissions/permissions.routes.js";
+import { me } from "./modules/me/me.routes.js";
+import { users } from "./modules/users/users.routes.js";
+import { internal } from "./modules/internal/internal.routes.js";
 import * as authService from "./modules/auth/auth.service.js";
 import * as sessionsService from "./modules/sessions/sessions.service.js";
 import { openapiDoc } from "./docs/openapi.js";
@@ -22,7 +25,31 @@ app.onError(errorHandler);
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
 
-app.use("*", cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  process.env.ACCOUNT_WEB_URL,
+  "https://tesdrive.ravaa.my.id",
+  "https://testoffice.ravaa.my.id",
+].filter(Boolean) as string[];
+
+app.use(
+  "*",
+  cors({
+    origin: (origin) => {
+      if (!origin) return allowedOrigins[0];
+      if (allowedOrigins.includes(origin)) return origin;
+      // Allow any localhost for dev (with port)
+      if (/^http:\/\/localhost:\d+$/.test(origin)) return origin;
+      if (/^http:\/\/192\.168\.\d+\.\d+:\d+$/.test(origin)) return origin;
+      return allowedOrigins[0];
+    },
+    credentials: true,
+    allowHeaders: ["Content-Type", "Authorization"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  }),
+);
 
 if (process.env.NODE_ENV !== "test") {
   app.use("/api/*", rateLimit({ windowMs: 60_000, maxRequests: 100 }));
@@ -74,13 +101,17 @@ app.post("/api/v1/auth/logout", authMiddleware(), async (c) => {
   return c.json({ message: "Logged out" });
 });
 
-// ─── User ─────────────────────────────────────────────────────────────────────
+// ─── Me (User) Routes ─────────────────────────────────────────────────────────
 
-app.get("/api/v1/me", authMiddleware(), async (c) => {
-  const authCtx = c.get("auth");
-  const user = await authService.getCurrentUser(authCtx.userId);
-  return c.json({ user });
-});
+app.route("/api/v1/me", me);
+
+// ─── Internal (Server-to-Server) ────────────────────────────────────────────────
+
+app.route("/api/v1/internal", internal);
+
+// ─── Admin Users (Phase 7.4) ──────────────────────────────────────────────────
+
+app.route("/api/v1/admin/users", users);
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,4 @@
-import type { OpenAPI } from "openapi-types";
-
-export const openapiDoc: OpenAPI.Document = {
+export const openapiDoc: any = {
   openapi: "3.0.3",
   info: {
     title: "Ravaa Service API",
@@ -21,6 +19,7 @@ export const openapiDoc: OpenAPI.Document = {
     { name: "Sessions", description: "Session management" },
     { name: "Applications", description: "Application registry management (Admin only)" },
     { name: "Permissions", description: "Permission and authorization management (Admin only)" },
+    { name: "Internal", description: "Internal server-to-server endpoints (Application Basic Auth + scope)" },
   ],
   components: {
     securitySchemes: {
@@ -29,6 +28,11 @@ export const openapiDoc: OpenAPI.Document = {
         scheme: "bearer",
         bearerFormat: "JWT",
         description: "JWT access token obtained from login or register",
+      },
+      BasicAuth: {
+        type: "http",
+        scheme: "basic",
+        description: "Application Client ID + Secret via HTTP Basic Auth",
       },
     },
     schemas: {
@@ -151,11 +155,11 @@ export const openapiDoc: OpenAPI.Document = {
           id: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440000" },
           email: { type: "string", format: "email", example: "user@example.com" },
           username: { type: "string", example: "demo_user" },
-          displayName: { type: "string", nullable: true, example: "Demo User" },
-          avatarUrl: { type: "string", nullable: true },
+          displayName: { type: "string", nullable: true as any, example: "Demo User" },
+          avatarUrl: { type: "string", nullable: true as any },
           role: { type: "string", enum: ["USER", "ADMIN"], example: "USER" },
-          status: { type: "string", enum: ["active", "suspended", "pending"], example: "pending" },
-          emailVerifiedAt: { type: "string", format: "date-time", nullable: true },
+          status: { type: "string", enum: ["active", "suspended", "pending"], example: "active", description: "active = usable; pending kept for legacy" },
+          emailVerifiedAt: { type: "string", format: "date-time", nullable: true as any, description: "null = not yet verified; timestamp = verified (optional)" },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
@@ -165,13 +169,13 @@ export const openapiDoc: OpenAPI.Document = {
         required: ["id", "expiresAt", "createdAt"],
         properties: {
           id: { type: "string", format: "uuid" },
-          deviceName: { type: "string", nullable: true, example: "My Laptop" },
-          deviceType: { type: "string", nullable: true, example: "web" },
-          ipAddress: { type: "string", nullable: true, example: "192.168.1.1" },
-          lastActiveAt: { type: "string", format: "date-time", nullable: true },
+          deviceName: { type: "string", nullable: true as any, example: "My Laptop" },
+          deviceType: { type: "string", nullable: true as any, example: "web" },
+          ipAddress: { type: "string", nullable: true as any, example: "192.168.1.1" },
+          lastActiveAt: { type: "string", format: "date-time", nullable: true as any },
           expiresAt: { type: "string", format: "date-time" },
           createdAt: { type: "string", format: "date-time" },
-          revokedAt: { type: "string", format: "date-time", nullable: true },
+          revokedAt: { type: "string", format: "date-time", nullable: true as any },
         },
       },
 
@@ -197,7 +201,7 @@ export const openapiDoc: OpenAPI.Document = {
           id: { type: "string", format: "uuid" },
           applicationId: { type: "string", format: "uuid" },
           scope: { type: "string", example: "drive:read" },
-          description: { type: "string", nullable: true, example: "Read access to Drive files" },
+          description: { type: "string", nullable: true as any, example: "Read access to Drive files" },
           createdAt: { type: "string", format: "date-time" },
         },
       },
@@ -210,7 +214,7 @@ export const openapiDoc: OpenAPI.Document = {
           applicationId: { type: "string", format: "uuid" },
           scopes: { type: "array", items: { type: "string" }, example: ["drive:read", "drive:write"] },
           grantedAt: { type: "string", format: "date-time" },
-          revokedAt: { type: "string", format: "date-time", nullable: true },
+          revokedAt: { type: "string", format: "date-time", nullable: true as any },
         },
       },
 
@@ -250,6 +254,28 @@ export const openapiDoc: OpenAPI.Document = {
         required: ["refreshToken"],
         properties: {
           refreshToken: { type: "string", description: "Refresh token from login/register" },
+        },
+      },
+      VerifyEmailRequest: {
+        type: "object",
+        required: ["token"],
+        properties: {
+          token: { type: "string", description: "Raw verification token from email link" },
+        },
+      },
+      ResendVerificationRequest: {
+        type: "object",
+        required: ["email"],
+        properties: {
+          email: { type: "string", format: "email" },
+        },
+      },
+      VerifyEmailResponse: {
+        type: "object",
+        required: ["message", "user"],
+        properties: {
+          message: { type: "string", example: "Email verified successfully." },
+          user: { $ref: "#/components/schemas/SafeUser" },
         },
       },
       CreateApplicationRequest: {
@@ -389,7 +415,7 @@ export const openapiDoc: OpenAPI.Document = {
           id: { type: "string", format: "uuid" },
           resource: { type: "string", example: "drive" },
           action: { type: "string", example: "read" },
-          description: { type: "string", nullable: true, example: "Read access to Drive files" },
+          description: { type: "string", nullable: true as any, example: "Read access to Drive files" },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
@@ -406,8 +432,8 @@ export const openapiDoc: OpenAPI.Document = {
           permissionId: { type: "string", format: "uuid" },
           effect: { type: "string", enum: ["allow", "deny"], example: "allow" },
           grantedAt: { type: "string", format: "date-time" },
-          revokedAt: { type: "string", format: "date-time", nullable: true },
-          expiresAt: { type: "string", format: "date-time", nullable: true },
+          revokedAt: { type: "string", format: "date-time", nullable: true as any },
+          expiresAt: { type: "string", format: "date-time", nullable: true as any },
           permission: { $ref: "#/components/schemas/SafePermission" },
         },
       },
@@ -491,6 +517,43 @@ export const openapiDoc: OpenAPI.Document = {
           },
         },
       },
+      SessionIntrospectRequest: {
+        type: "object",
+        required: ["userId", "sessionId"],
+        properties: {
+          userId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440000" },
+          sessionId: { type: "string", format: "uuid", example: "660e8400-e29b-41d4-a716-446655440001" },
+        },
+      },
+      SessionIntrospectResponse: {
+        type: "object",
+        required: ["valid"],
+        properties: {
+          valid: { type: "boolean", example: true },
+          userId: { type: "string", format: "uuid" },
+          sessionId: { type: "string", format: "uuid" },
+          reason: { type: "string", enum: ["REVOKED"], example: "REVOKED" },
+        },
+      },
+      AuthorizationCheckRequest: {
+        type: "object",
+        required: ["principalType", "principalId", "permission"],
+        properties: {
+          principalType: { type: "string", enum: ["USER", "APPLICATION", "SYSTEM"], example: "USER" },
+          principalId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440000" },
+          permission: { type: "string", example: "drive:read" },
+          resourceType: { type: "string", example: "file" },
+          resourceId: { type: "string", example: "660e8400-e29b-41d4-a716-446655440001" },
+        },
+      },
+      AuthorizationCheckResponse: {
+        type: "object",
+        required: ["allowed"],
+        properties: {
+          allowed: { type: "boolean", example: true },
+          reason: { type: "string", example: "ALLOWED" },
+        },
+      },
     },
   },
   paths: {
@@ -564,7 +627,7 @@ export const openapiDoc: OpenAPI.Document = {
         operationId: "register",
         summary: "Register new user",
         description:
-          "Creates a new user account. Returns access token and refresh token.\n\nUser status will be `pending` until email verification is implemented.",
+          "Creates a new user account. Account is active immediately (status=active, emailVerifiedAt=null). A verification email is sent if the email service is enabled; verification is optional and only sets emailVerifiedAt.",
         requestBody: {
           required: true,
           content: {
@@ -689,6 +752,90 @@ export const openapiDoc: OpenAPI.Document = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/UnauthorizedResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/v1/auth/verify-email": {
+      post: {
+        tags: ["Authentication"],
+        operationId: "verifyEmail",
+        summary: "Verify email address",
+        description: "Verifies a user's email using the token sent via email. Sets emailVerifiedAt; status remains active (optional verification).",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/VerifyEmailRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Email verified",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/VerifyEmailResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid or expired token",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "429": {
+            description: "Rate limit exceeded",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/RateLimitResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/v1/auth/resend-verification": {
+      post: {
+        tags: ["Authentication"],
+        operationId: "resendVerification",
+        summary: "Resend verification email",
+        description: "Resends verification email for an unverified account (emailVerifiedAt=null). Generic response to prevent enumeration; already verified accounts receive generic success without sending.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ResendVerificationRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Response (generic)",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/MessageResponse" },
+              },
+            },
+          },
+          "429": {
+            description: "Rate limit exceeded",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/RateLimitResponse" },
               },
             },
           },
@@ -1939,7 +2086,127 @@ export const openapiDoc: OpenAPI.Document = {
         },
       },
     },
-    "/api/v1/permissions/principal/{type}/{id}": {
+      "/api/v1/internal/sessions/introspect": {
+      post: {
+        tags: ["Internal"],
+        operationId: "introspectSession",
+        summary: "Introspect Ravaa session (server-to-server)",
+        description:
+          "Validates a Ravaa user session for server-to-server authentication. Requires Application Basic Auth with scope `session:introspect`. Returns 200 with valid:true for active sessions, 200 with valid:false/reason REVOKED for revoked/expired/unknown/inactive (enumeration resistant).",
+        security: [{ BasicAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SessionIntrospectRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Session introspection result",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SessionIntrospectResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Validation error",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ValidationErrorResponse" },
+              },
+            },
+          },
+          "401": {
+            description: "Invalid client credentials or application disabled",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UnauthorizedResponse" },
+              },
+            },
+          },
+          "403": {
+            description: "Missing scope session:introspect",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ForbiddenResponse" },
+              },
+            },
+          },
+          "429": {
+            description: "Rate limit exceeded",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/RateLimitResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/v1/internal/authorization/check": {
+        post: {
+          tags: ["Internal"],
+          operationId: "checkAuthorization",
+          summary: "Read-only authorization check (server-to-server)",
+          description:
+            "Checks authorization for a principal on a permission/resource. Requires Application Basic Auth with scope `authorization:read`. Returns 200 with allowed:true/false + reason.",
+          security: [{ BasicAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AuthorizationCheckRequest" },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Authorization check result",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AuthorizationCheckResponse" },
+                },
+              },
+            },
+            "400": {
+              description: "Validation error",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ValidationErrorResponse" },
+                },
+              },
+            },
+            "401": {
+              description: "Invalid client credentials or application disabled",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/UnauthorizedResponse" },
+                },
+              },
+            },
+            "403": {
+              description: "Missing scope authorization:read",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ForbiddenResponse" },
+                },
+              },
+            },
+            "429": {
+              description: "Rate limit exceeded",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/RateLimitResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/v1/permissions/principal/{type}/{id}": {
       get: {
         tags: ["Permissions"],
         operationId: "listPrincipalPermissions",

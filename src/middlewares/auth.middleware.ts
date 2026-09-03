@@ -52,6 +52,20 @@ export function authMiddleware() {
         throw new AuthenticationError("Session user mismatch");
       }
 
+      if (session.user.status !== "active" && session.user.status !== "pending") {
+        throw new AuthenticationError("Account is not active");
+      }
+
+      // Update lastActiveAt throttled to 5 minutes to avoid DB writes on every request
+      const now = new Date();
+      const last = session.lastActiveAt ? new Date(session.lastActiveAt).getTime() : 0;
+      if (!session.lastActiveAt || now.getTime() - last > 5 * 60 * 1000) {
+        // fire-and-forget, don't block request
+        prisma.session
+          .update({ where: { id: session.id }, data: { lastActiveAt: now } })
+          .catch(() => {});
+      }
+
       c.set("auth", {
         userId: payload.sub,
         sessionId: payload.sid,

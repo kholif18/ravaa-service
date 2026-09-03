@@ -2,8 +2,17 @@ import { serve } from "@hono/node-server";
 import { app } from "./app.js";
 import { getEnv } from "./env.js";
 import { logger } from "./lib/logger.js";
+import { setEmailProvider, FakeEmailProvider } from "./lib/email/email.provider.js";
+import { SmtpEmailProvider } from "./lib/email/smtp.provider.js";
 
 const env = getEnv();
+
+// Init email provider
+if (env.EMAIL_ENABLED) {
+  setEmailProvider(new SmtpEmailProvider());
+} else {
+  setEmailProvider(new FakeEmailProvider());
+}
 
 const server = serve(
   {

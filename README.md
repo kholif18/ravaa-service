@@ -67,15 +67,43 @@ Examples:
 - `APPLICATION` — Ravaa application
 - `SYSTEM` — System-level access
 
-## Admin Access
+## Admin & Seed Data
 
-Application management requires administrator privileges.
+**Semua data user dipertahankan saat migrasi** (`ALTER TABLE` dengan default). Hanya `prisma migrate reset` yang menghapus, dan seed otomatis akan mengembalikan akun.
 
+Seed default (`prisma/seed.ts`) idempotent — aman dijalankan berulang:
+
+| Akun | Email | Username | Password | Role |
+|------|-------|----------|----------|------|
+| Admin | `admin@ravaa.my.id` | `admin` | `Secret123` | ADMIN |
+| Demo | `demo@ravaa.my.id` | `demo` | `demo12345` | USER |
+
+Sample apps juga di-seed: `ravaa-drive` (drive:read/write) + `ravaa-note` (notes:read/write), demo user sudah diberikan akses `drive:read/write`.
+
+**Jalankan seed manual:**
 ```bash
+npm run db:seed              # prisma db seed → tsx prisma/seed.ts
+npx tsx scripts/seed-admin.ts # alternatif legacy, baca INITIAL_ADMIN_* dari .env
+```
+
+**Kustom admin via .env:**
+```env
 INITIAL_ADMIN_EMAIL=admin@yourdomain.com
 INITIAL_ADMIN_PASSWORD=secure-password
-npx tsx scripts/seed-admin.ts
+INITIAL_ADMIN_USERNAME=admin
+SEED_DEMO_USER=false          # skip demo user
+SEED_SAMPLE_APPS=false        # skip sample apps
 ```
+
+**Alur migrasi yang mempertahankan data:**
+```bash
+npx prisma migrate dev        # buat migrasi baru, data tetap ada
+npm run db:seed               # hanya jika butuh refresh admin/demo
+# vs
+npx prisma migrate reset --force # hapus semua → seed otomatis jalan
+```
+
+> Login di `http://localhost:5173/login` dengan akun di atas. Admin bisa akses `/admin`.
 
 ## Scripts
 
@@ -88,7 +116,9 @@ npx tsx scripts/seed-admin.ts
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run typecheck` | Type check without emitting |
 | `npm run db:generate` | Generate Prisma client |
-| `npm run db:migrate` | Run Prisma migrations |
+| `npm run db:migrate` | Run Prisma migrations (data dipertahankan) |
+| `npm run db:migrate:prod` | Deploy migrations di production |
+| `npm run db:seed` | Seed admin/demo/apps (idempotent) |
 | `npm run db:studio` | Open Prisma Studio |
 | `npm run db:push` | Push schema to database |
 

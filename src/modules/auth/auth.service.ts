@@ -10,7 +10,21 @@ const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MINUTES = 15;
 const SESSION_EXPIRY_DAYS = 7;
 
-function toSafeUser(user: { id: string; email: string; username: string; displayName: string | null; avatarUrl: string | null; role: string; status: string; emailVerifiedAt: Date | null; createdAt: Date; updatedAt: Date }): SafeUser {
+function toSafeUser(user: {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  role: string;
+  status: string;
+  emailVerifiedAt: Date | null;
+  recoveryEmail?: string | null;
+  recoveryPhone?: string | null;
+  twoFactorEnabled?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}): SafeUser {
   return {
     id: user.id,
     email: user.email,
@@ -20,9 +34,12 @@ function toSafeUser(user: { id: string; email: string; username: string; display
     role: user.role as SafeUser["role"],
     status: user.status as SafeUser["status"],
     emailVerifiedAt: user.emailVerifiedAt,
+    recoveryEmail: (user as any).recoveryEmail ?? null,
+    recoveryPhone: (user as any).recoveryPhone ?? null,
+    twoFactorEnabled: (user as any).twoFactorEnabled ?? false,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-  };
+  } as SafeUser;
 }
 
 function getExpiryDate(): Date {
@@ -55,7 +72,7 @@ export async function register(input: RegisterInput, clientInfo: { ipAddress: st
         username: input.username,
         passwordHash,
         displayName: input.displayName ?? input.username,
-        status: "pending",
+        status: "active",
       },
     });
 
@@ -81,6 +98,14 @@ export async function register(input: RegisterInput, clientInfo: { ipAddress: st
 
   await logAudit(result.user.id, null, "REGISTER_SUCCESS", clientInfo);
 
+  // Create verification token + send email (do not fail registration on email error)
+  try {
+    const { createVerificationForUser } = await import("./email-verification.service.js");
+    await createVerificationForUser(result.user);
+  } catch (err) {
+    logger.error("email.verification.create_failed", { userId: result.user.id });
+  }
+
   return {
     user: toSafeUser(result.user),
     accessToken: result.accessToken,
@@ -97,7 +122,9 @@ export async function login(input: LoginInput, clientInfo: { ipAddress: string; 
   });
 
   if (!user) {
-    throw new AuthenticationError("Invalid credentials");
+    throw new AuthenticationError("Username atau email tidak ditemukan", {
+      identifier: ["Username atau email tidak ditemukan"],
+    });
   }
 
   if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -126,7 +153,9 @@ export async function login(input: LoginInput, clientInfo: { ipAddress: string; 
       await logAudit(user.id, null, "ACCOUNT_LOCKED", clientInfo);
     }
 
-    throw new AuthenticationError("Invalid credentials");
+    throw new AuthenticationError("Password salah", {
+      password: ["Password salah"],
+    });
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -200,13 +229,13 @@ export async function refresh(refreshToken: string, clientInfo: { ipAddress: str
   const newRefreshToken = await signRefreshToken();
   const newRefreshTokenHash = await hashToken(newRefreshToken);
 
-  await prisma.$transaction(async (tx) => {
+  const newSession = await prisma.$transaction(async (tx) => {
     await tx.session.update({
       where: { id: session.id },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: new Date(), lastActiveAt: new Date() },
     });
 
-    await tx.session.create({
+    const created = await tx.session.create({
       data: {
         userId: session.userId,
         refreshTokenHash: newRefreshTokenHash,
@@ -215,11 +244,13 @@ export async function refresh(refreshToken: string, clientInfo: { ipAddress: str
         ipAddress: clientInfo.ipAddress,
         userAgent: clientInfo.userAgent,
         expiresAt: getExpiryDate(),
+        lastActiveAt: new Date(),
       },
     });
+    return created;
   });
 
-  const accessToken = await signAccessToken(session.userId, session.id);
+  const accessToken = await signAccessToken(session.userId, newSession.id);
 
   await logAudit(session.userId, null, "TOKEN_REFRESH", clientInfo);
 

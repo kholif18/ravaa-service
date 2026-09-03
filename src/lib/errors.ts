@@ -1,26 +1,29 @@
 import type { Context } from "hono";
 
 export class AppError extends Error {
+  public details?: Record<string, string[]>;
   constructor(
     public statusCode: number,
     public code: string,
     message: string,
+    details?: Record<string, string[]>,
   ) {
     super(message);
     this.name = "AppError";
+    this.details = details;
   }
 }
 
 export class ValidationError extends AppError {
   constructor(message: string, public details?: Record<string, string[]>) {
-    super(400, "VALIDATION_ERROR", message);
+    super(400, "VALIDATION_ERROR", message, details);
     this.name = "ValidationError";
   }
 }
 
 export class AuthenticationError extends AppError {
-  constructor(message = "Authentication required") {
-    super(401, "AUTHENTICATION_ERROR", message);
+  constructor(message = "Authentication required", details?: Record<string, string[]>) {
+    super(401, "AUTHENTICATION_ERROR", message, details);
     this.name = "AuthenticationError";
   }
 }
@@ -69,7 +72,7 @@ export function errorResponse(c: Context, error: unknown): Response {
         message: error.message,
       },
     };
-    if (error instanceof ValidationError && error.details) {
+    if (error.details) {
       body.error.details = error.details;
     }
     return c.json(body, error.statusCode as 400);

@@ -75,7 +75,7 @@ beforeAll(async () => {
   }
   applicationId = appBody.application.id;
 
-  // Create permission
+  // Create permission (handle existing from seed — idempotent)
   const permRes = await app.request("/api/v1/permissions", {
     method: "POST",
     headers: {
@@ -88,8 +88,23 @@ beforeAll(async () => {
       description: "Read access to Drive",
     }),
   });
-  const permBody = await permRes.json();
-  permissionId = permBody.permission.id;
+  if (permRes.status === 201) {
+    const permBody = await permRes.json();
+    permissionId = permBody.permission.id;
+  } else if (permRes.status === 409) {
+    // Already exists from seed — fetch it
+    const listRes = await app.request("/api/v1/permissions", {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const listBody = await listRes.json();
+    const found = listBody.permissions.find(
+      (p: any) => p.resource === "drive" && p.action === "read",
+    );
+    permissionId = found.id;
+  } else {
+    const permBody = await permRes.json();
+    permissionId = permBody.permission.id;
+  }
 });
 
 afterAll(async () => {
