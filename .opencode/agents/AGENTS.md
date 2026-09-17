@@ -70,6 +70,21 @@ ravaa-service/
 └── README.md
 ```
 
+## Deployment Mode — HOME vs ENTERPRISE (ADR 2026-09-17)
+
+> **Konteks:** `ravaa-service` adalah **Pusat Identitas (SSO)** untuk Drive/Note/Photos. Untuk **home + keluarga + toko desain**, mode HOME yang dipakai.
+
+| Mode | Aplikasi | Kapan dipakai |
+|---|---|---|
+| **HOME** (default untuk personal/family) | `ravaa-service` cuma handle `auth` + `sessions` + `me` (login, JWT 15m, refresh 7d, list/revoke sessions) | Self-hosted di NAS/Rumah, share ke pelanggan via **Drive ShareLink** (`/s/{token}`), bukan via Service RBAC |
+| **ENTERPRISE** | + `applications` (OAuth client) + `permissions` RBAC (`resource:action` + `grant/revoke` ke principal) | Jika go public / marketplace aplikasi |
+
+**Aturan HOME:**
+- `Applications` & `Permissions` **tetap ada code-nya tapi tidak diekspos di `ravaa-account` UI** (hidden). Jangan hapus — bisa diaktifkan lagi jika butuh.
+- **Share file/folder untuk pelanggan TANPA AKUN bukan tanggung jawab `ravaa-service`**, tapi **`Ravaa-Drive` via `ShareLink`** (token 32-byte, `passwordHash` bcrypt, `expiresAt`, `maxViews`, `revokedAt`). Lihat `Ravaa-Drive/.opencode/agents/AGENTS.md` bagian `ShareLink`.
+- `ravaa-service` tetap validasi token via `GET /api/v1/me` (introspection) untuk `FAMILY` share (yang butuh login). Untuk `LINK`, Drive validasi lokal tanpa call service.
+- 1 Postgres + 1 deployment — hemat RAM untuk home server (tidak perlu multi-instance).
+
 ## Development Rules
 
 ### Code Style
@@ -256,16 +271,19 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 ```
 
-### Database Schema (8 Models)
+### Database Schema (8 Models — HOME pakai 5 inti)
+
+> HOME Mode hanya andalkan 5 model inti: `User`, `Session`, `PasswordReset`, `EmailVerification`, `AuditLog`. `Application`, `ApplicationScope`, `UserApplicationAccess` adalah **Enterprise only** (hidden di HOME).
 
 - **User**: id (UUID), email (unique), username (unique), passwordHash, displayName, avatarUrl, status (active/suspended/pending), emailVerifiedAt, failedLoginCount, lockedUntil
 - **Session**: id (UUID), userId, refreshTokenHash, deviceName, deviceType, ipAddress, userAgent, lastActiveAt, expiresAt, revokedAt
-- **Application**: id (UUID), name, slug (unique), clientId (unique), clientSecretHash, redirectUris, status (active/inactive/suspended)
-- **ApplicationScope**: id (UUID), applicationId, scope, description
-- **UserApplicationAccess**: id (UUID), userId, applicationId, scopes[], grantedAt, revokedAt — unique(userId, applicationId)
+- **Application** *(Enterprise)*: id (UUID), name, slug (unique), clientId (unique), clientSecretHash, redirectUris, status (active/inactive/suspended) — **tidak dipakai di HOME**
+- **ApplicationScope** *(Enterprise)*: id (UUID), applicationId, scope, description — **tidak dipakai di HOME**
+- **UserApplicationAccess** *(Enterprise)*: id (UUID), userId, applicationId, scopes[], grantedAt, revokedAt — unique(userId, applicationId) — **tidak dipakai di HOME**
 - **PasswordReset**: id (UUID), userId, tokenHash, expiresAt, usedAt
 - **EmailVerification**: id (UUID), userId, tokenHash, expiresAt, verifiedAt
 - **AuditLog**: id (UUID), userId (nullable), applicationId (nullable), action, ipAddress, userAgent, metadata (JSONB)
+- **ShareLink TIDAK di service** — ada di `Ravaa-Drive` (SQLite) dengan field `shareToken` 43-char, `visibility` (PRIVATE/FAMILY/LINK), `passwordHash`, `expiresAt`, `maxViews`, `viewCount`, `revokedAt` — lihat Drive AGENTS.md
 
 ### Authentication Flow
 
@@ -440,8 +458,9 @@ npm start
   - Demo: `demo@ravaa.my.id` / `demo12345` (USER)
 - **JANGAN** membuat user manual tiap perubahan — andalkan seed. Jika butuh kustom, set `INITIAL_ADMIN_EMAIL/PASSWORD/USERNAME` di `.env` lalu `npm run db:seed`.
 
-## API Endpoints (Phase 2)
+## API Endpoints
 
+### HOME Endpoints (inti — dipakai di semua mode)
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/health` | No | Health check |
@@ -450,10 +469,22 @@ npm start
 | POST | `/api/v1/auth/login` | No | Login |
 | POST | `/api/v1/auth/refresh` | No | Refresh access token |
 | POST | `/api/v1/auth/logout` | Yes | Logout (revoke session) |
-| GET | `/api/v1/me` | Yes | Get current user |
+| GET | `/api/v1/me` | Yes | Get current user — **juga dipakai Drive untuk introspeksi token FAMILY share** |
 | GET | `/api/v1/sessions` | Yes | List user sessions |
 | DELETE | `/api/v1/sessions/:id` | Yes | Revoke single session |
 | DELETE | `/api/v1/sessions` | Yes | Revoke all sessions |
+
+### Enterprise Endpoints (hidden di HOME)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET/POST | `/api/v1/applications` | Yes (ADMIN) | CRUD Application (OAuth client) — HOME hidden |
+| POST | `/api/v1/applications/{id}/rotate-secret` | Yes (ADMIN) | Rotate secret — HOME hidden |
+| GET/POST | `/api/v1/applications/{id}/scopes` | Yes (ADMIN) | Manage scopes — HOME hidden |
+| GET/POST | `/api/v1/permissions` | Yes (ADMIN) | RBAC catalogue — HOME hidden, ganti ShareLink di Drive |
+| POST | `/api/v1/permissions/grant` | Yes (ADMIN) | Grant resource permission — HOME hidden |
+| POST | `/api/v1/permissions/revoke` | Yes (ADMIN) | Revoke — HOME hidden |
+
+> Share file ke pelanggan tanpa akun (`LINK`) → **bukan** `POST /api/v1/permissions/grant`, tapi `POST /api/share` di **Ravaa-Drive** (`/s/{token}` + password + expiry).
 
 ## Troubleshooting
 
@@ -504,6 +535,7 @@ npx prisma migrate dev           # Run migrations
 - **Phase 7.7** ✅: Share Polymorphic Fix — `shareableType/shareableId`
 - **Phase 7.8** ✅: Security Hardening — 16 security fixes
 - **Phase 7.9** ✅: Session Hardening Design — audit + design report (Option C recommended)
+- **Phase 7.10** 🔄 ADR 2026-09-17: Home Simplification — Enterprise RBAC (Applications/Permissions) di-hidden untuk HOME, ganti ShareLink 3-level di Drive untuk pelanggan tanpa akun
 
 ### Security Fixes (Phase 7.8)
 

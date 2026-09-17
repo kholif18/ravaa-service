@@ -14,9 +14,15 @@ function toSafeUser(u: any): SafeUser {
     recoveryEmail: u.recoveryEmail ?? null,
     recoveryPhone: u.recoveryPhone ?? null,
     twoFactorEnabled: u.twoFactorEnabled ?? false,
+    storageLimit: u.storageLimit ? Number(u.storageLimit) : 5368709120,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
-  } as SafeUser;
+  } as any;
+}
+
+export async function updateUserStorage(userId: string, storageLimit: number): Promise<SafeUser> {
+  const user = await prisma.user.update({ where: { id: userId }, data: { storageLimit: BigInt(storageLimit) } });
+  return toSafeUser(user);
 }
 
 export async function listAllUsers(): Promise<SafeUser[]> {

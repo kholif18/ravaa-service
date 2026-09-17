@@ -56,6 +56,14 @@ me.patch("/password", authMiddleware(), async (c) => {
   return c.json({ message: "Password changed successfully" });
 });
 
+// GET /api/v1/me/storage — dynamic per-user (enterprise)
+me.get("/storage", authMiddleware(), async (c) => {
+  const { userId } = c.get("auth");
+  const user = await c.get("auth") ? await (await import("../../db/index.js")).prisma.user.findUnique({ where: { id: userId }, select: { storageLimit: true } }) : null;
+  const limit = user ? Number(user.storageLimit) : 5368709120;
+  return c.json({ storage: { limit, used: 0, note: "used dihitung di Drive via SUM File" } });
+});
+
 // GET /api/v1/me/security — security overview
 me.get("/security", authMiddleware(), async (c) => {
   const { userId } = c.get("auth");

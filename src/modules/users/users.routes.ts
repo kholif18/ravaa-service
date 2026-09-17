@@ -21,4 +21,15 @@ users.get("/:id", authMiddleware(), requireAdmin(), async (c) => {
   return c.json({ user });
 });
 
+users.patch("/:id/storage", authMiddleware(), requireAdmin(), async (c) => {
+  const id = c.req.param("id") as string;
+  const body = await c.req.json();
+  const limit = Number(body.storageLimit);
+  if (!Number.isFinite(limit) || limit < 1073741824 || limit > 1099511627776) {
+    return c.json({ error: { code: "VALIDATION_ERROR", message: "storageLimit must be 1GB - 1TB" } }, 400);
+  }
+  const user = await usersService.updateUserStorage(id, limit);
+  return c.json({ user });
+});
+
 export { users };

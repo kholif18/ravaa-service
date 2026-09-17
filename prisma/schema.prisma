@@ -56,6 +56,7 @@ model User {
   twoFactorEnabled Boolean    @default(false) @map("two_factor_enabled")
   twoFactorSecret String?     @map("two_factor_secret")
   twoFactorBackupCodes String[] @default([]) @map("two_factor_backup_codes")
+  storageLimit    BigInt      @default(5368709120) @map("storage_limit") // 5GB default, dynamic enterprise
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 

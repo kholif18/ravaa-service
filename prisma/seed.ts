@@ -146,6 +146,8 @@ async function main() {
     password: adminPassword,
     role: "ADMIN",
   });
+  // Set storageLimit for admin (10GB) and ensure persisted
+  await prisma.user.update({ where: { id: admin.id }, data: { storageLimit: BigInt(10737418240) } }).catch(()=>{});
   console.log(`  ✓ Admin: ${admin.email} / ${admin.username} (role: ${admin.role})`);
 
   // Demo user — always seeded unless SEED_DEMO_USER=false
@@ -160,6 +162,7 @@ async function main() {
       password: "demo12345",
       role: "USER",
     });
+    await prisma.user.update({ where: { id: demo.id }, data: { storageLimit: BigInt(5368709120) } }).catch(()=>{});
     console.log(`  ✓ Demo : ${demo.email} / ${demo.username} (password: demo12345)`);
   }
 
