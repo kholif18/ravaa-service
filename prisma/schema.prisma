@@ -69,6 +69,7 @@ model User {
   passwordResets              PasswordReset[]
   emailVerifications          EmailVerification[]
   auditLogs                   AuditLog[]
+  webAuthnCredentials         WebAuthnCredential[]
 
   @@map("users")
 }
@@ -216,6 +217,23 @@ model Permission {
   @@index([resource])
   @@index([action])
   @@map("permissions")
+}
+
+// ─── WebAuthnCredential (Passkeys) ────────────────────────────────────────────
+
+model WebAuthnCredential {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  credentialId    String   @unique @map("credential_id")
+  publicKey       String   @map("public_key")
+  counter         BigInt   @default(0)
+  deviceName      String?  @map("device_name")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("webauthn_credentials")
 }
 
 // ─── ResourcePermission ──────────────────────────────────────────────────────
