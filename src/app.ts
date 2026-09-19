@@ -12,6 +12,7 @@ import { me } from "./modules/me/me.routes.js";
 import { users } from "./modules/users/users.routes.js";
 import { internal } from "./modules/internal/internal.routes.js";
 import { mobile } from "./modules/mobile/mobile.routes.js";
+import { storage } from "./modules/storage/storage.routes.js";
 import * as authService from "./modules/auth/auth.service.js";
 import * as sessionsService from "./modules/sessions/sessions.service.js";
 import { openapiDoc } from "./docs/openapi.js";
@@ -122,6 +123,10 @@ app.route("/api/v1/admin/users", users);
 // ─── Mobile Gateway for Android (Drive + Notes proxy) ─────────────────────────
 
 app.route("/api/v1/mobile", mobile);
+
+// ─── Admin Storage (proxy Drive /mnt HDD) ─────────────────────────────────────
+
+app.route("/api/v1/admin/storage", storage);
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
 
