@@ -31,6 +31,11 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   process.env.ACCOUNT_WEB_URL,
+  "https://account.ravaa.my.id",
+  "https://service.ravaa.my.id",
+  "https://drive.ravaa.my.id",
+  "https://notes.ravaa.my.id",
+  "https://office.ravaa.my.id",
   "https://tesdrive.ravaa.my.id",
   "https://testoffice.ravaa.my.id",
 ].filter(Boolean) as string[];
