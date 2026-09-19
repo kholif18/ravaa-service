@@ -11,6 +11,7 @@ import { permissions } from "./modules/permissions/permissions.routes.js";
 import { me } from "./modules/me/me.routes.js";
 import { users } from "./modules/users/users.routes.js";
 import { internal } from "./modules/internal/internal.routes.js";
+import { mobile } from "./modules/mobile/mobile.routes.js";
 import * as authService from "./modules/auth/auth.service.js";
 import * as sessionsService from "./modules/sessions/sessions.service.js";
 import { openapiDoc } from "./docs/openapi.js";
@@ -112,6 +113,10 @@ app.route("/api/v1/internal", internal);
 // ─── Admin Users (Phase 7.4) ──────────────────────────────────────────────────
 
 app.route("/api/v1/admin/users", users);
+
+// ─── Mobile Gateway for Android (Drive + Notes proxy) ─────────────────────────
+
+app.route("/api/v1/mobile", mobile);
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
 
