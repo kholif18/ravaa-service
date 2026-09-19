@@ -4,7 +4,7 @@ FROM node:20-alpine AS builder
 RUN apk add --no-cache python3 make g++ libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY prisma ./prisma
 COPY tsconfig.json ./
 COPY src ./src
