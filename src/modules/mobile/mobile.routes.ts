@@ -4,7 +4,7 @@ import { authMiddleware } from "../../middlewares/auth.middleware.js";
 const mobile = createRouter();
 
 const DRIVE_URL = process.env.RAVAA_DRIVE_URL || "http://localhost:2713";
-const NOTES_URL = process.env.RAVAA_NOTES_URL || "http://localhost:2714";
+const NOTES_URL = process.env.RAVAA_NOTES_URL || "http://localhost:2715";
 
 // --- Drive proxy ---
 
