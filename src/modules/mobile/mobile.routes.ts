@@ -155,6 +155,22 @@ mobile.delete("/drive/files/:id", authMiddleware(), async (c) => {
   return c.json(data, res.status as any);
 });
 
+mobile.get("/drive/shares", authMiddleware(), async (c) => {
+  const auth = c.req.header("authorization") || "";
+  const qs = new URL(c.req.url).searchParams.toString();
+  const res = await fetch(`${DRIVE_URL}/api/share${qs ? `?${qs}` : ""}`, { headers: { Authorization: auth } });
+  const data = await res.json().catch(() => ({}));
+  return c.json(data, res.status as any);
+});
+
+mobile.get("/notes/shares", authMiddleware(), async (c) => {
+  const auth = c.req.header("authorization") || "";
+  const qs = new URL(c.req.url).searchParams.toString();
+  const res = await fetch(`${NOTES_URL}/api/share${qs ? `?${qs}` : ""}`, { headers: { Authorization: auth } });
+  const data = await res.json().catch(() => ({}));
+  return c.json(data, res.status as any);
+});
+
 // --- Device & sync token (simple) ---
 mobile.post("/devices", authMiddleware(), async (c) => {
   const { userId } = c.get("auth");
