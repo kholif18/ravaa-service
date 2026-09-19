@@ -61,6 +61,13 @@ export const deleteAccountSchema = z.object({
   confirmation: z.string().optional(),
 });
 
+export const updatePreferencesSchema = z.object({
+  language: z.string().min(2).max(10).optional(),
+  timezone: z.string().min(1).max(50).optional(),
+  emailNotifications: z.boolean().optional(),
+  securityAlerts: z.boolean().optional(),
+});
+
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateRecoveryInput = z.infer<typeof updateRecoverySchema>;

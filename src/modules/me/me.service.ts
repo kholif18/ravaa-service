@@ -379,6 +379,22 @@ export async function updateRecovery(
   return toSafeUser(updated as any);
 }
 
+// ─── Preferences ──────────────────────────────────────────────────────────────
+export async function getPreferences(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { language: true, timezone: true, emailNotifications: true, securityAlerts: true } });
+  if (!user) throw new NotFoundError("User");
+  return user;
+}
+export async function updatePreferences(userId: string, input: { language?: string; timezone?: string; emailNotifications?: boolean; securityAlerts?: boolean }) {
+  const data: any = {};
+  if (input.language !== undefined) data.language = input.language;
+  if (input.timezone !== undefined) data.timezone = input.timezone;
+  if (input.emailNotifications !== undefined) data.emailNotifications = input.emailNotifications;
+  if (input.securityAlerts !== undefined) data.securityAlerts = input.securityAlerts;
+  const updated = await prisma.user.update({ where: { id: userId }, data });
+  return { language: updated.language, timezone: updated.timezone, emailNotifications: updated.emailNotifications, securityAlerts: updated.securityAlerts };
+}
+
 // ─── My Applications ──────────────────────────────────────────────────────────
 export async function listMyApplications(userId: string) {
   const accesses = await prisma.userApplicationAccess.findMany({

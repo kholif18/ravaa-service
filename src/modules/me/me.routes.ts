@@ -8,6 +8,7 @@ import {
   confirm2FASchema,
   disable2FASchema,
   deleteAccountSchema,
+  updatePreferencesSchema,
 } from "./me.schema.js";
 import * as meService from "./me.service.js";
 import * as authService from "../auth/auth.service.js";
@@ -157,6 +158,25 @@ me.patch("/security/recovery", authMiddleware(), async (c) => {
   const clientInfo = getClientInfo(c);
   const user = await meService.updateRecovery(userId, parsed.data, clientInfo);
   return c.json({ user, message: "Recovery options updated" });
+});
+
+// GET /api/v1/me/preferences
+me.get("/preferences", authMiddleware(), async (c) => {
+  const { userId } = c.get("auth");
+  const prefs = await meService.getPreferences(userId);
+  return c.json({ preferences: prefs });
+});
+
+// PATCH /api/v1/me/preferences
+me.patch("/preferences", authMiddleware(), async (c) => {
+  const { userId } = c.get("auth");
+  const body = await c.req.json();
+  const parsed = updatePreferencesSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ValidationError("Validation failed", parsed.error.flatten().fieldErrors as Record<string, string[]>);
+  }
+  const prefs = await meService.updatePreferences(userId, parsed.data);
+  return c.json({ preferences: prefs });
 });
 
 // GET /api/v1/me/applications — list my applications
