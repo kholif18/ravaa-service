@@ -115,6 +115,46 @@ mobile.get("/notebooks", authMiddleware(), async (c) => {
   return c.json(data, res.status as any);
 });
 
+mobile.get("/drive/storage", authMiddleware(), async (c) => {
+  const auth = c.req.header("authorization") || "";
+  const res = await fetch(`${DRIVE_URL}/api/files/storage-stats`, { headers: { Authorization: auth } });
+  const data = await res.json().catch(() => ({}));
+  return c.json(data, res.status as any);
+});
+
+mobile.post("/drive/folders", authMiddleware(), async (c) => {
+  const auth = c.req.header("authorization") || "";
+  const body = await c.req.json().catch(() => ({}));
+  const res = await fetch(`${DRIVE_URL}/api/folders`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return c.json(data, res.status as any);
+});
+
+mobile.patch("/drive/files/:id", authMiddleware(), async (c) => {
+  const id = c.req.param("id");
+  const auth = c.req.header("authorization") || "";
+  const body = await c.req.json().catch(() => ({}));
+  const res = await fetch(`${DRIVE_URL}/api/files/${id}`, {
+    method: "PATCH",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return c.json(data, res.status as any);
+});
+
+mobile.delete("/drive/files/:id", authMiddleware(), async (c) => {
+  const id = c.req.param("id");
+  const auth = c.req.header("authorization") || "";
+  const res = await fetch(`${DRIVE_URL}/api/files/${id}`, { method: "DELETE", headers: { Authorization: auth } });
+  const data = await res.json().catch(() => ({}));
+  return c.json(data, res.status as any);
+});
+
 // --- Device & sync token (simple) ---
 mobile.post("/devices", authMiddleware(), async (c) => {
   const { userId } = c.get("auth");
