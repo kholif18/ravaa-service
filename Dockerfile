@@ -21,6 +21,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/package.json ./package.json
 EXPOSE 2711
-CMD ["sh","-c","npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh","-c","npx prisma migrate deploy && npx tsx prisma/seed.ts || true; node dist/index.js"]
