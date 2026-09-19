@@ -28,7 +28,7 @@ applications.post("/", authMiddleware(), requireAdmin(), async (c) => {
   return c.json({ application: result, clientSecret: result.clientSecret }, 201);
 });
 
-applications.get("/", authMiddleware(), requireAdmin(), async (c) => {
+applications.get("/", authMiddleware(), async (c) => {
   const applicationList = await applicationsService.listApplications();
   return c.json({ applications: applicationList });
 });
