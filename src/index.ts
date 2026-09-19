@@ -18,6 +18,7 @@ const server = serve(
   {
     fetch: app.fetch,
     port: env.PORT,
+    hostname: "0.0.0.0",
   },
   (info) => {
     logger.info(`🚀 Ravaa Service running on http://localhost:${info.port}`);
