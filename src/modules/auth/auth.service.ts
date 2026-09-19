@@ -158,41 +158,34 @@ export async function login(input: LoginInput, clientInfo: { ipAddress: string; 
     });
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: user.id },
-      data: {
-        failedLoginCount: 0,
-        lockedUntil: null,
-      },
-    });
+  const refreshToken = await signRefreshToken();
+  const refreshTokenHash = await hashToken(refreshToken);
 
-    const refreshToken = await signRefreshToken();
-    const refreshTokenHash = await hashToken(refreshToken);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { failedLoginCount: 0, lockedUntil: null },
+  });
 
-    const session = await tx.session.create({
-      data: {
-        userId: user.id,
-        refreshTokenHash,
-        deviceName: input.deviceName ?? "Unknown Device",
-        deviceType: input.deviceType ?? "api",
-        ipAddress: clientInfo.ipAddress,
-        userAgent: clientInfo.userAgent,
-        expiresAt: getExpiryDate(),
-      },
-    });
+  const session = await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshTokenHash,
+      deviceName: input.deviceName ?? "Unknown Device",
+      deviceType: input.deviceType ?? "api",
+      ipAddress: clientInfo.ipAddress,
+      userAgent: clientInfo.userAgent,
+      expiresAt: getExpiryDate(),
+    },
+  });
 
-    const accessToken = await signAccessToken(user.id, session.id);
-
-    return { accessToken, refreshToken };
-  }, { maxWait: 10000, timeout: 20000 });
+  const accessToken = await signAccessToken(user.id, session.id);
 
   await logAudit(user.id, null, "LOGIN_SUCCESS", clientInfo);
 
   return {
     user: toSafeUser(user),
-    accessToken: result.accessToken,
-    refreshToken: result.refreshToken,
+    accessToken,
+    refreshToken,
     expiresIn: 900,
   };
 }
