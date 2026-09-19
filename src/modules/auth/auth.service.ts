@@ -94,7 +94,7 @@ export async function register(input: RegisterInput, clientInfo: { ipAddress: st
     const accessToken = await signAccessToken(user.id, session.id);
 
     return { user, accessToken, refreshToken };
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 
   await logAudit(result.user.id, null, "REGISTER_SUCCESS", clientInfo);
 
@@ -185,7 +185,7 @@ export async function login(input: LoginInput, clientInfo: { ipAddress: string; 
     const accessToken = await signAccessToken(user.id, session.id);
 
     return { accessToken, refreshToken };
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 
   await logAudit(user.id, null, "LOGIN_SUCCESS", clientInfo);
 
@@ -248,7 +248,7 @@ export async function refresh(refreshToken: string, clientInfo: { ipAddress: str
       },
     });
     return created;
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 
   const accessToken = await signAccessToken(session.userId, newSession.id);
 
