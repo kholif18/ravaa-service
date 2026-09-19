@@ -1,40 +1,23 @@
-# ─── Stage 1: Build ────────────────────────────────────────────────────────────
-
-FROM node:22-alpine AS builder
-
+# Ravaa Service — Hono + Prisma + PG
+# Build: docker build -t ravaa-service .
+FROM node:20-alpine AS builder
+RUN apk add --no-cache python3 make g++ libc6-compat
 WORKDIR /app
-
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
-
-COPY prisma ./prisma/
-RUN npx prisma generate
-
+RUN npm ci
+COPY prisma ./prisma
 COPY tsconfig.json ./
-COPY src ./src/
+COPY src ./src
+RUN npx prisma generate
+RUN npm run build
 
-RUN npx tsc
-
-# ─── Stage 2: Production ──────────────────────────────────────────────────────
-
-FROM node:22-alpine AS runner
-
+FROM node:20-alpine AS runner
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
-
-RUN addgroup -g 1001 -S ravaa && \
-    adduser -S ravaa -u 1001 -G ravaa
-
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --ignore-scripts
-
-COPY --from=builder /app/prisma ./prisma/
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma/
-COPY --from=builder /app/dist ./dist/
-
-USER ravaa
-
-EXPOSE 3000
-
 ENV NODE_ENV=production
-
-CMD ["node", "dist/index.js"]
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./package.json
+EXPOSE 2711
+CMD ["sh","-c","npx prisma migrate deploy && node dist/index.js"]

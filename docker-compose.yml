@@ -1,23 +1,33 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: ravaa-service-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ravaa_service
       POSTGRES_USER: ravaa
       POSTGRES_PASSWORD: ravaa_dev_password
+      POSTGRES_DB: ravaa_service
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    volumes:
-      - ravaa_service_db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ravaa -d ravaa_service"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U ravaa"]
+      interval: 5s
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "2711:2711"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      PORT: 2711
+      DATABASE_URL: postgresql://ravaa:ravaa_dev_password@db:5432/ravaa_service
+    volumes:
+      - ./prisma:/app/prisma:ro
 
 volumes:
-  ravaa_service_db:
-    name: ravaa_service_db
+  pgdata:
