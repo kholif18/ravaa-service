@@ -43,6 +43,47 @@ me.patch("/", authMiddleware(), async (c) => {
   return c.json({ user });
 });
 
+// POST /api/v1/me/avatar — upload avatar langsung (HOME)
+me.post("/avatar", authMiddleware(), async (c) => {
+  const { userId } = c.get("auth");
+  const body = await c.req.parseBody();
+  const file = body["avatar"] as File | undefined;
+  if (!file || typeof (file as any).arrayBuffer !== "function") {
+    throw new ValidationError("Validation failed", { avatar: ["File required"] } as any);
+  }
+  if (!file.type.startsWith("image/")) throw new ValidationError("Validation failed", { avatar: ["Must be image"] } as any);
+  if (file.size > 2 * 1024 * 1024) throw new ValidationError("Validation failed", { avatar: ["Max 2MB"] } as any);
+  const buf = Buffer.from(await (file as any).arrayBuffer());
+  const { writeFile } = await import("fs/promises");
+  const { mkdir } = await import("fs/promises");
+  const path = await import("path");
+  const dir = path.join(process.cwd(), "data", "avatars");
+  await mkdir(dir, { recursive: true });
+  const ext = file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg";
+  const filename = `${userId}.${ext}`;
+  await writeFile(path.join(dir, filename), buf);
+  const base = process.env.SERVICE_PUBLIC_URL || (process.env.NODE_ENV === "production" ? "https://service.ravaa.my.id" : "http://localhost:2711");
+  const url = `${base}/api/v1/me/avatar/${filename}`;
+  const user = await meService.updateProfile(userId, { avatarUrl: url } as any);
+  return c.json({ user, avatarUrl: url });
+});
+
+// GET /api/v1/me/avatar/:filename — serve avatar file
+me.get("/avatar/:filename", async (c) => {
+  const filename = c.req.param("filename") as string;
+  const path = await import("path");
+  const { readFile } = await import("fs/promises");
+  const filePath = path.join(process.cwd(), "data", "avatars", filename);
+  try {
+    const buf: any = await readFile(filePath);
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+    return new Response(buf, { headers: { "Content-Type": mime, "Cache-Control": "public, max-age=86400" } }) as any;
+  } catch {
+    return c.json({ error: { code: "NOT_FOUND", message: "Avatar not found" } }, 404);
+  }
+});
+
 // PATCH /api/v1/me/password — change password
 me.patch("/password", authMiddleware(), async (c) => {
   const { userId, sessionId } = c.get("auth");
